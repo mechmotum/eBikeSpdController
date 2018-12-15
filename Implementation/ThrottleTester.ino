@@ -1,1 +1,0 @@
-/*This sketch tests the voltage range of hte hall effect sensor on the throttle*/float throttleVoltage;void setup() {    Serial.begin(9600);    pinMode(A6, INPUT);}void loop() {    throttleVoltage = (5.0/1023.0) * analogRead(A6);    Serial.print(throttleVoltage);}
