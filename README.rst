@@ -25,7 +25,7 @@ Prerequisites
 
 Software
 
-You will need the MATLAB R2018b with the Control System and Robust Control Toolboxes installed. Also needed is the Arduino IDE with the 
+You will need MATLAB R2018b with the Control System and Robust Control Toolboxes installed. Also needed is the Arduino IDE with the 
 PID_v1 and PinChangeInterrupt libraries. 
 
 Hardware 
