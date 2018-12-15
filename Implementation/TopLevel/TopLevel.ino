@@ -1,9 +1,14 @@
+/*               eBike Speed Controller Implementation Code             */               
 
-/* 
-*Davis Instrumented Bike Speed Controller Code 
+/// DESCRIPTION
+///  This code implements a PID controller designed in MATLAB digitally on an Arduino nano 
+///   to control the speed of an instrumented ebike. 
 
-*PID_v1 library can be downloaded from here: https://github.com/br3ttb/Arduino-PID-Library
-*/ 
+/// ACKNOWLEDGEMENTS
+///  PID_v1 library can be downloaded from here: https://github.com/br3ttb/Arduino-PID-Library
+///   PinChangeInterrupt Library can be downloaded from here: https://github.com/GreyGnome/PinChangeInt
+///    Tutorial for PinChangeInterrupt Library can be found here https://www.brainy-bits.com/make-any-arduino-pin-an-interrupt-pin/
+///     This code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal  
 
 // Sets code mode to run system diagnostics. Set to true to enable diagnostics and false to disable
 boolean diag = true;
@@ -281,6 +286,7 @@ void minusISR() {
 }
 
 // function for converting generator voltage reading into actual velocity 
+// for more information, see: http://moorepants.github.io/dissertation/davisbicycle.html#calibration  
 double getSpeed() {
   int genVoltage = 2*analogRead(genPin); 
   genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
