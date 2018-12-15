@@ -64,30 +64,6 @@ int MC_Val;
 unsigned long currTime; // Used for logging time in diagnostics 
 File diagFile; // Creates a new file object 
 
-//// EXPERIMENTAL
-//  union EEPROMvals {
-//    int valInt;
-//    byte valByte[4];
-//  } fileIndex;
-//  
-//  // On startup the arduino will read from its memory the last value of fileIndex
-//  for (int i = 0; i<4; i++) {
-//    fileIndex.valByte[i] = EEPROM.read(0+i);
-//  }
-//  
-//  // Advance fileIndex by 1
-//  fileIndex.valInt = fileIndex.valInt + 1;
-//  
-//  // Write this new value of fileIndex to arduino memory
-//  for (int i = 0; i <4; i++) {
-//     EEPROM.update( 0+i, fileIndex.valByte[i]);
-//  } 
-//  
-//  // Creating filename variable for naming the csv files in logData function
-//  char filename [12];
-//  sprintf(filename, "G1_%d", fileIndex.valInt);
-//// EXPERIMENTAL
-
 // Constants for converting DC generator voltage to speed 
 double
 sf = 2*3.1415/60,     /* from dissertation */ \
