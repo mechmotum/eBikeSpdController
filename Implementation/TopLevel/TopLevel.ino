@@ -1,3 +1,4 @@
+
 /*               eBike Speed Controller Implementation Code             */               
 
 /// DESCRIPTION
@@ -8,10 +9,11 @@
 ///  PID_v1 library can be downloaded from here: https://github.com/br3ttb/Arduino-PID-Library
 ///   PinChangeInterrupt Library can be downloaded from here: https://github.com/GreyGnome/PinChangeInt
 ///    Tutorial for PinChangeInterrupt Library can be found here https://www.brainy-bits.com/make-any-arduino-pin-an-interrupt-pin/
-///     This code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal  
+///     This code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal 
 
 // Sets code mode to run system diagnostics. Set to true to enable diagnostics and false to disable
-boolean diag = true;
+boolean diag = false;
+boolean serial = true;
 
 /* 
 * -------- Code Libraries --------
@@ -30,10 +32,11 @@ boolean diag = true;
 /* 
 * -------- Function Prototypes ----------
 */
-double getSpeed();                                                      // Function for converting raw measured voltage into speed
-void plusISR();                                                         // Interrupt Service Routine called when plus speed increment button is pressed
-void minusISR();                                                        // Interrupt Service Routine called when minus speed increment button is pressed
-void logData(double Setpoint, double Input, double Output, unsigned long currTime);
+double getSpeed();                                                                  // Function for converting raw measured voltage into speed
+void plusISR();                                                                     // Interrupt Service Routine called when plus speed increment button is pressed
+void minusISR();                                                                    // Interrupt Service Routine called when minus speed increment button is pressed
+void logData(double Setpoint, double Input, double Output, unsigned long currTime); // Function that logs pertinent information to SD card
+void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double Input, double Output, unsigned long currTime); // Function that prints pertinent information to serial monitor for debugging
 
 /* 
 * -------- Variable Declarations ---------
@@ -80,11 +83,14 @@ volatile double Setpoint = 0; // declared as volatile so that its value may be s
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT);
 
+boolean cruiseControlState = false; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
 /* 
 * ------------ Setup Function ------------ 
 */ 
 void setup() {
+    
+    if(serial) Serial.begin(9600); 
     
     // Initializing LCD 
     lcd.begin(16,2);
@@ -166,8 +172,12 @@ void loop() {
  // Passing throttle signal through the Arduino 
  Tsig = analogRead(Tpin); 
  analogWrite(outputPin, Tsig/4.0); 
+
+ if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime); // displays pertinent info to serial monitor
  
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
+
+   cruiseControlState = true;
    
    // Letting the user know they engaged the cruise control
    lcd.clear();
@@ -210,8 +220,9 @@ void loop() {
     motorPID.Compute();
     analogWrite(outputPin, Output); // Some manipulation of "Output" may be needed here 
     
-    // Log performance data to SD card if diagnostics enabled
+    // Log performance data to SD card and/or serial monitor if diagnostics enabled
     if(diag) logData(Setpoint, Input, Output, currTime);
+    if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime);
     
     //Updating the current speed on the LCD
     lcd.setCursor(9,1);
@@ -221,6 +232,8 @@ void loop() {
     lcd.setCursor(7,0);
     lcd.print(Setpoint);
    } 
+
+   cruiseControlState = false;
    
    delay(500);
    // Letting the user know the cruise control is disengaging
@@ -262,7 +275,7 @@ void minusISR() {
 }
 
 // function for converting generator voltage reading into actual velocity 
-// for more information, see: http://moorepants.github.io/dissertation/davisbicycle.html#calibration  
+// See: http://moorepants.github.io/dissertation/davisbicycle.html#calibration 
 double getSpeed() {
   int genVoltage = 2*analogRead(genPin); 
   genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
@@ -270,6 +283,7 @@ double getSpeed() {
   return speed;
 } 
 
+// function for logging performance information to an SD card for data logging
 void logData(double Setpoint, double Input, double Output, unsigned long currTime) {
   diagFile = SD.open("test_1.txt", FILE_WRITE);
   if(diagFile) {  // Skips executing the function if the file did not open correctly
@@ -282,4 +296,22 @@ void logData(double Setpoint, double Input, double Output, unsigned long currTim
     diagFile.println(currTime/1000.0);
     diagFile.close();
   }
+} 
+
+// function for writing pertinent information to serial monitor for debugging
+void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double Input, double Output, unsigned long currTime) { 
+  if (cruiseControlState == true) {
+    Serial.print("|CC_on, ");
+  } else {
+    Serial.print("|CC_off, ");
+  }
+  Serial.print(Setpoint);
+  Serial.print(",| ");
+  Serial.print(Tsig * (5.0/1023.0));  // converts signal from throttle to a voltage
+  Serial.print(",");
+  Serial.print(Input);
+  Serial.print(",");
+  Serial.print(Output *(5.0/255.0));  // Output in voltage
+  Serial.print(",");
+  Serial.println(currTime/1000.0);
 }
