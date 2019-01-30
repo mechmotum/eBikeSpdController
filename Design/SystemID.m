@@ -68,10 +68,13 @@ fprintf("The optimized coefficients:"); display(x); fprintf("/n");
 % Plotting the Curve Fit
 figure();
 plot(xdata,ydata,'r',t_2,time_response(x,t_2),'b', 'LineWidth', 2 )  
-title('Curvefit Result vs Measured Time Response')
+% title('Non Linear Least Squares Curve Fit Result')
 xlabel('Time [s]') 
 ylabel('Speed [m/s]')
-legend('Measured Time Response', 'Curvefit')
+h = legend('Measured', 'Model Prediction');
+rect = [0.21, -0.27, 1, 1];
+set(h, 'Position', rect)  
+h.FontSize = 12;
 
 % Displaying the Identified Plant Model
 Gp = tf(x(1),[1,x(2),x(3)]);
