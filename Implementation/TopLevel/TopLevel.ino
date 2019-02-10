@@ -173,7 +173,7 @@ void loop() {
  Tsig = analogRead(Tpin); 
  analogWrite(outputPin, Tsig/4.0); 
 
- if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime); // displays pertinent info to serial monitor
+ if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime); // displays pertinent info to serial monitor 
  
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
 
@@ -311,7 +311,14 @@ void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double 
   Serial.print(",");
   Serial.print(Input);
   Serial.print(",");
+
+  // Getting DC Generator Voltage
+  int genVoltage = 2*analogRead(genPin); 
+  genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
+  Serial.print(",");
+  Serial.print(genVoltage);
+  
   Serial.print(Output *(5.0/255.0));  // Output in voltage
   Serial.print(",");
-  Serial.println(currTime/1000.0);
+  Serial.println(currTime/1000.0); 
 }
