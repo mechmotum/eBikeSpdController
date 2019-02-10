@@ -214,7 +214,7 @@ void loop() {
    analogWrite(outputPin, 0); // turns the output from the nano off
    analogWrite(outputPin, Output); // Some manipulation of "Output" may be needed here
    
-   while(analogRead(Tpin) <= 205) { // If the throttle is slightly moved past it's neutral position (~1V), exit the cruise control
+   while(analogRead(Tpin) <= 410) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
     currTime = millis();
     Input = getSpeed();
     motorPID.Compute();
