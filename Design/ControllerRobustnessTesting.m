@@ -31,7 +31,8 @@ d = ureal('d', 8.308, 'Percentage',30);
 Gp = tf(d, [a b c]); 
 
 % Tuned Controller Acquired From ControllerTuning.m 
-Gc = pid(68.5,106,1.44);
+% Gc = pid(68.5,106,1.44);
+Gc = pid(1.01,0.108,0);
 
 % Closed Loop System
 sys_cl = feedback(Gc*Gp,1); 
