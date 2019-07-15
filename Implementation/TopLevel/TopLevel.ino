@@ -1,4 +1,3 @@
-
 /*               eBike Speed Controller Implementation Code             */               
 
 /// DESCRIPTION
@@ -289,18 +288,35 @@ double getSpeed() {
 } 
 
 // function for logging performance information to an SD card for data logging
-void logData(double Setpoint, double Input, double Output, unsigned long currTime) {
+void logData(boolean cruiseControlState, double Setpoint, float Tsig, double Input, double Output, unsigned long currTime) {
   diagFile = SD.open("test_1.txt", FILE_WRITE);
   if(diagFile) {  // Skips executing the function if the file did not open correctly
+    if (cruiseControlState == true) {
+    diagFile.print("|CC_on, ");
+    } else {
+    diagFile.print("|CC_off, ");
+    }
     diagFile.print(Setpoint);
+    diagFile.print(",| ");
+    //diagFile.print(Tsig * (5.0/1023.0));  // converts signal from throttle to a voltage
+    diagFile.print(Tsig);  // Raw Tsig value from analogRead
     diagFile.print(",");
     diagFile.print(Input);
     diagFile.print(",");
-    diagFile.print(Output);
+
+    // Getting DC Generator Voltage
+    int genVoltage = 2*analogRead(genPin); 
+    genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
     diagFile.print(",");
-    diagFile.println(currTime/1000.0);
+    diagFile.print(genVoltage);
+  
+    //diagFile.print(Output * (5.0/255.0));  // Output in voltage
+    diagFile.print(Output);  // Raw output value before analogWrite
+    diagFile.print(",");
+    diagFile.println(currTime/1000.0);  
+    
     diagFile.close();
-  }
+    }
 } 
 
 // function for writing pertinent information to serial monitor for debugging
@@ -312,7 +328,8 @@ void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double 
   }
   Serial.print(Setpoint);
   Serial.print(",| ");
-  Serial.print(Tsig * (5.0/1023.0));  // converts signal from throttle to a voltage
+  //Serial.print(Tsig * (5.0/1023.0));  // converts signal from throttle to a voltage
+  Serial.print(Tsig);  // Raw Tsig value from analogRead
   Serial.print(",");
   Serial.print(Input);
   Serial.print(",");
@@ -323,7 +340,8 @@ void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double 
   Serial.print(",");
   Serial.print(genVoltage);
   
-  Serial.print(Output *(5.0/255.0));  // Output in voltage
+  //Serial.print(Output * (5.0/255.0));  // Output in voltage
+  Serial.print(Output);  // Raw output value before analogWrite
   Serial.print(",");
   Serial.println(currTime/1000.0); 
 }
