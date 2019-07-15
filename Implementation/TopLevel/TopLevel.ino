@@ -11,7 +11,7 @@
 ///    Tutorial for PinChangeInterrupt Library can be found here https://www.brainy-bits.com/make-any-arduino-pin-an-interrupt-pin/
 ///     This code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal 
 
-// Sets code mode to run system diagnostics. Set to true to enable diagnostics and false to disable
+// Sets code mode to run system diagnostics. This enables or disables logging information to the micro SD card. Additionally, serial monitoring can be toggled on and off here.
 boolean diag = false;
 boolean serial = true;
 
@@ -67,7 +67,7 @@ int MC_Val;
 unsigned long currTime; // Used for logging time in diagnostics 
 File diagFile; // Creates a new file object 
 
-// Constants for converting DC generator voltage to speed 
+// Constants for converting DC generator voltage to speed in getSpeed() function
 double
 sf = 2*3.1415/60,     /* from dissertation */ \
 m = 456.3862,         /* from dissertation */ \
@@ -78,10 +78,10 @@ rC = 0.333375         /* from dissertation [m] */ \
 ;
 
 // PID Setup 
-double kp = 7120.0, ki = 272.0, kd = 0;
+double kp = 1.03, ki = 0.145, kd = 0; // Constants Acquired From Controller Design Stage
 volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
 double Input, Output;
-PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT);
+PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
 
 boolean cruiseControlState = false; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
@@ -118,7 +118,7 @@ void setup() {
     digitalWrite(minusPin, HIGH);
     
     // PID library settings
-    motorPID.SetOutputLimits(0,198);  // Cuts the PID output at ~3.9V which is ~the max output of the hall effect sensor given the throttle range of motion 
+    motorPID.SetOutputLimits(0,235);  // Cuts the PID output (sent to the motor controller as a PWM signal) at about the max output of the hall effect sensor at max throttle 
     motorPID.SetMode(AUTOMATIC); // turns PID on
     
     // Diagnostics
@@ -174,7 +174,8 @@ void loop() {
  analogWrite(outputPin, Tsig/4.0); 
 
  if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime); // displays pertinent info to serial monitor 
- 
+
+ // CRUISE CONTROL INITIALIZATION
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
 
    cruiseControlState = true;
@@ -210,11 +211,14 @@ void loop() {
    lcd.print("m/s");
    
    Input = getSpeed(); // measures the new current speed as the input to the PID algorithim
-   motorPID.Compute(); // computes the output
+   motorPID.Compute(); // computes the output 
+
+   // THE HANDOFF // Cruise Control now takes over signals to motor controller
    analogWrite(outputPin, 0); // turns the output from the nano off
    analogWrite(outputPin, Output); // Some manipulation of "Output" may be needed here
-   
-   while(analogRead(Tpin) <= 410) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
+
+   // CRUISE CONTROL LOOP
+   while(analogRead(Tpin) <= 195) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
     currTime = millis();
     Input = getSpeed();
     motorPID.Compute();
@@ -233,6 +237,7 @@ void loop() {
     lcd.print(Setpoint);
    } 
 
+   // Cruise Control Disengaged
    cruiseControlState = false;
    
    delay(500);
