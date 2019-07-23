@@ -11,7 +11,7 @@
 ///     This code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal 
 
 // Sets code mode to run system diagnostics. This enables or disables logging information to the micro SD card. Additionally, serial monitoring can be toggled on and off here.
-boolean diag = false;
+boolean diag = true;
 boolean serial = true;
 
 /* 
@@ -20,7 +20,7 @@ boolean serial = true;
 #include <PID_v1.h>              // Library for PID features
 #include <LiquidCrystal.h>       // Library for LCD display 
 #include <SD.h>                  // Library for logging data to the SD card
-#include <EEPROM.h>              // Library for using EEPROM
+//#include <EEPROM.h>              // Library for using EEPROM
 #include <SPI.h>                 // Library for SPI communications 
 #include <PinChangeInterrupt.h>  // The following libraries enable hardware interrupts to be used on any pin of the nano
 #include <PinChangeInterruptBoards.h>
@@ -81,6 +81,7 @@ double kp = 1.03, ki = 0.145, kd = 0; // Constants Acquired From Controller Desi
 volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
+int OutputWrite // variable for writing output to motor controller as a PWM duty cycle
 
 boolean cruiseControlState = false; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
@@ -117,7 +118,7 @@ void setup() {
     digitalWrite(minusPin, HIGH);
     
     // PID library settings
-    motorPID.SetOutputLimits(0,235);  // Cuts the PID output (sent to the motor controller as a PWM signal) at about the max output of the hall effect sensor at max throttle 
+    motorPID.SetOutputLimits(0,4.59);  // Cuts the PID output (V) at about the max output of the hall effect sensor at max throttle (measured at 940 bits ~4.59V) 
     motorPID.SetMode(AUTOMATIC); // turns PID on
     
     // Diagnostics
@@ -214,17 +215,19 @@ void loop() {
 
    // THE HANDOFF // Cruise Control now takes over signals to motor controller
    analogWrite(outputPin, 0); // turns the output from the nano off
-   analogWrite(outputPin, Output); // Some manipulation of "Output" may be needed here
+   OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
+   analogWrite(outputPin, OutputWrite); // Writing output to motor controller
 
    // CRUISE CONTROL LOOP
    while(analogRead(Tpin) <= 195) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
     currTime = millis();
     Input = getSpeed();
     motorPID.Compute();
-    analogWrite(outputPin, Output); // Some manipulation of "Output" may be needed here 
+    OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
+    analogWrite(outputPin, OutputWrite); // Writing output to motor controller
     
     // Log performance data to SD card and/or serial monitor if diagnostics enabled
-    if(diag) logData(Setpoint, Input, Output, currTime);
+    if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime);
     if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime);
     
     //Updating the current speed on the LCD
@@ -281,16 +284,17 @@ void minusISR() {
 // function for converting generator voltage reading into actual velocity 
 // See: http://moorepants.github.io/dissertation/davisbicycle.html#calibration 
 double getSpeed() {
-  int genVoltage = 2*analogRead(genPin); 
-  genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
+  double genVoltage = 2.0*(double)analogRead(genPin); 
+  genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
   double speed = (sf*(m*genVoltage+b)*rR*rD)/rC;
   return speed;
 } 
 
 // function for logging performance information to an SD card for data logging
 void logData(boolean cruiseControlState, double Setpoint, float Tsig, double Input, double Output, unsigned long currTime) {
-  diagFile = SD.open("test_1.txt", FILE_WRITE);
+  diagFile = SD.open("test_4.txt", FILE_WRITE);
   if(diagFile) {  // Skips executing the function if the file did not open correctly
+    
     if (cruiseControlState == true) {
     diagFile.print("|CC_on, ");
     } else {
@@ -305,10 +309,10 @@ void logData(boolean cruiseControlState, double Setpoint, float Tsig, double Inp
     diagFile.print(",");
 
     // Getting DC Generator Voltage
-    int genVoltage = 2*analogRead(genPin); 
-    genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
-    diagFile.print(",");
+    double genVoltage = 2.0*analogRead(genPin); // multiply by two to account for voltage divider 
+    genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
     diagFile.print(genVoltage);
+    diagFile.print(",");
   
     //diagFile.print(Output * (5.0/255.0));  // Output in voltage
     diagFile.print(Output);  // Raw output value before analogWrite
@@ -335,13 +339,15 @@ void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double 
   Serial.print(",");
 
   // Getting DC Generator Voltage
-  int genVoltage = 2*analogRead(genPin); 
-  genVoltage = map(genVoltage,0,1023,0,5); // Converts digital output of analogRead to voltage
-  Serial.print(",");
+  double genVoltage = 2.0*(double)analogRead(genPin);   // Multiply by two to account for voltage divider
+  genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
   Serial.print(genVoltage);
+  Serial.print(",");
   
   //Serial.print(Output * (5.0/255.0));  // Output in voltage
   Serial.print(Output);  // Raw output value before analogWrite
+  Serial.print(","); 
+  Serial.print((int)Output*(255/5));
   Serial.print(",");
   Serial.println(currTime/1000.0); 
 }
