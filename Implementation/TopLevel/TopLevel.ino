@@ -178,10 +178,21 @@ void setup() {
 * ------------ Loop Function -------------- 
 */
 void loop() { 
+ 
+ // FLAGGING START OF LOOP
+ if(diag) {
+  loopStartState = 1; currTime = millis();
+  logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState); 
+ }
+ 
+ // PASSING THROTTLE THROUGH THE NANO
+ if(cruiseControlState == false) {
 
-  if(cruiseControlState == false) {
-
-   currTime = millis();
+   // FLAGGING START OF IF1
+   if(diag) {
+    ifState1 = 1; currTime = millis();
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1); 
+    }
  
    // Printing message to let user know cruise control is off
    lcd.setCursor(0,0);
@@ -216,13 +227,23 @@ void loop() {
    }
   
    if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
-   delay(50);
-   if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter); 
+   
+   // FLAGGING END OF IF1
+   if(diag) {
+    ifState1 = 0; currTime = millis();
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1); 
+    }
   }
 
  // CRUISE CONTROL INITIALIZATION
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
 
+   // FLAGGING START OF IF2
+   if(diag) {
+    ifState2 = 1; currTime = millis();
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2); 
+    }
+    
    cruiseControlState = true;
    
    // Letting the user know they engaged the cruise control
@@ -264,23 +285,29 @@ void loop() {
    analogWrite(outputPin, OutputWrite); // Writing output to motor controller 
    
    delay(3000); // pause to allow user to let go of throttle 
-   //Tsig = 0; // Set Tsig equal to zero so that it does not trip the while loop coming up next
-   Serial.println("Entering The loop"); 
-   delay(3000);
-   Serial.println("Delay Over"); 
+   
+   // FLAGGING END OF IF2
+   if(diag) {
+    ifState2 = 0; currTime = millis();
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2); 
+    }
  }
 
-   // RUNNING THE PID ALGORITHM
-   if(cruiseControlState == true) {
-    currTime = millis();
+ // RUNNING THE PID ALGORITHM
+ if(cruiseControlState == true) {
+    
+    // FLAGGING START OF IF3
+    if(diag) {
+     ifState3 = 1; currTime = millis();
+     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3); 
+     }
+    
     Input = getSpeed();
     motorPID.Compute();
     OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
     analogWrite(outputPin, OutputWrite); // Writing output to motor controller
     
-    // Log performance data to SD card and/or serial monitor if diagnostics enabled
-    if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter);
-    delay(50);
+    // Log performance data to serial monitor if diagnostics enabled
     if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime);
     
     //Updating the current speed on the LCD
@@ -290,12 +317,25 @@ void loop() {
     //Updating the setpoint on the LCD 
     lcd.setCursor(7,0);
     lcd.print(Setpoint);
+    
+     // FLAGGING END OF IF3
+    if(diag) {
+     ifState3 = 0; currTime = millis();
+     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3); 
+     }
+    
    }
 
-   // CHECKING FOR CONDITIONS FOR CRUISE CONTROL DISENGAGEMENT
-   if(analogRead(Tpin) >= 200 && cruiseControlState == true) {
-    cruiseControlState == false;
-
+ // CHECKING FOR CONDITIONS FOR CRUISE CONTROL DISENGAGEMENT
+ if(analogRead(Tpin) >= 200 && cruiseControlState == true) {
+   
+   // FLAGGING START OF IF4
+    if(diag) {
+     ifState4 = 1; currTime = millis();
+     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+     }
+   
+   cruiseControlState == false;
    Setpoint = 0; Output = 0; // Setting setpoint and output back to zero so they can be reinitialized next time cruise control is engaged
    
    // Letting the user know the cruise control is disengaging
@@ -307,8 +347,21 @@ void loop() {
    
    analogWrite(outputPin, 0); // turns off the output to  "flip the switch"
    delay(2000);
-   lcd.clear();
+   lcd.clear(); 
+   
+   // FLAGGING END OF IF4
+    if(diag) {
+     ifState4 = 0; currTime = millis();
+     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+     }
+   
    }  
+
+ // FLAGGING END OF LOOP
+  if(diag) {
+   loopStartState = 0; currTime = millis();
+   logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState); 
+  }
 
 } // END LOOP FUNCTION
 
