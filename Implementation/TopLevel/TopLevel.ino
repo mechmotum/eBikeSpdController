@@ -177,45 +177,48 @@ void setup() {
 /* 
 * ------------ Loop Function -------------- 
 */
-void loop() {
+void loop() { 
 
- currTime = millis();
+  if(cruiseControlState == false) {
+
+   currTime = millis();
  
- // Printing message to let user know cruise control is off
- lcd.setCursor(0,0);
- lcd.print("Cruise Control");
- lcd.setCursor(0,1);
- lcd.print("Off");
- 
- // Passing throttle signal through the Arduino 
- Tsig = analogRead(Tpin); 
- if (Tsig < 190) {                // If the throttle is at it's rest position there should be no output to the motor controller
-   analogWrite(outputPin, 0); 
- }
- else {
-  total = total - readings[readIndex]; // subtract the last reading:
-  // read from the sensor:
-  readings[readIndex] = Tsig/4;
-  // add the reading to the total:
-  total = total + readings[readIndex];
-  // advance to the next position in the array:
-  readIndex = readIndex + 1;
-
-  // if we're at the end of the array...
-  if (readIndex >= numReadings) {
-    // ...wrap around to the beginning:
-    readIndex = 0;
-  }
-
-  // calculate the average:
-  average = total / numReadings;
+   // Printing message to let user know cruise control is off
+   lcd.setCursor(0,0);
+   lcd.print("Cruise Control");
+   lcd.setCursor(0,1);
+   lcd.print("Off");
    
-   analogWrite(outputPin, average);
- }
-
- if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
- delay(50);
- if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter);
+   // Passing throttle signal through the Arduino 
+   Tsig = analogRead(Tpin); 
+   if (Tsig < 190) {                // If the throttle is at it's rest position there should be no output to the motor controller
+     analogWrite(outputPin, 0); 
+   }
+   else {
+    total = total - readings[readIndex]; // subtract the last reading:
+    // read from the sensor:
+    readings[readIndex] = Tsig/4;
+    // add the reading to the total:
+    total = total + readings[readIndex];
+    // advance to the next position in the array:
+    readIndex = readIndex + 1;
+  
+    // if we're at the end of the array...
+    if (readIndex >= numReadings) {
+      // ...wrap around to the beginning:
+      readIndex = 0;
+    }
+  
+    // calculate the average:
+    average = total / numReadings;
+     
+     analogWrite(outputPin, average);
+   }
+  
+   if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
+   delay(50);
+   if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter); 
+  }
 
  // CRUISE CONTROL INITIALIZATION
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
@@ -264,10 +267,11 @@ void loop() {
    //Tsig = 0; // Set Tsig equal to zero so that it does not trip the while loop coming up next
    Serial.println("Entering The loop"); 
    delay(3000);
-   Serial.println("Delay Over");
-   
-   // CRUISE CONTROL LOOP
-   while(analogRead(Tpin) <= 200) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
+   Serial.println("Delay Over"); 
+ }
+
+   // RUNNING THE PID ALGORITHM
+   if(cruiseControlState == true) {
     currTime = millis();
     Input = getSpeed();
     motorPID.Compute();
@@ -279,9 +283,6 @@ void loop() {
     delay(50);
     if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime);
     
-    delay(50);
-    //Serial.println(analogRead(Tpin));
-    
     //Updating the current speed on the LCD
     lcd.setCursor(9,1);
     lcd.print(Input); 
@@ -289,18 +290,16 @@ void loop() {
     //Updating the setpoint on the LCD 
     lcd.setCursor(7,0);
     lcd.print(Setpoint);
-   } 
+   }
 
-Serial.println("Just Left Loop");
-delay(5000);
-   // Cruise Control Disengaged
-   cruiseControlState = false; 
-   Setpoint = 0; // Setting setpoint back to zero so it can be reinitialized next time cruise control is engaged
+   // CHECKING FOR CONDITIONS FOR CRUISE CONTROL DISENGAGEMENT
+   if(analogRead(Tpin) >= 200 && cruiseControlState == true) {
+    cruiseControlState == false;
+
+   Setpoint = 0; Output = 0; // Setting setpoint and output back to zero so they can be reinitialized next time cruise control is engaged
    
-   delay(500);
    // Letting the user know the cruise control is disengaging
    lcd.clear();
-   delay(750);
    lcd.setCursor(0,0);
    lcd.print("Cruise Control");
    lcd.setCursor(0,1);
@@ -309,10 +308,7 @@ delay(5000);
    analogWrite(outputPin, 0); // turns off the output to  "flip the switch"
    delay(2000);
    lcd.clear();
-   
- } // END CRUISE CONTROL FEATURES
-
-
+   }  
 
 } // END LOOP FUNCTION
 
