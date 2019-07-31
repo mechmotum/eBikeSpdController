@@ -20,7 +20,7 @@ boolean serial = true;
 #include <PID_v1.h>              // Library for PID features
 #include <LiquidCrystal.h>       // Library for LCD display 
 #include <SD.h>                  // Library for logging data to the SD card
-//#include <EEPROM.h>              // Library for using EEPROM
+#include <EEPROM.h>              // Library for using EEPROM
 #include <SPI.h>                 // Library for SPI communications 
 #include <PinChangeInterrupt.h>  // The following libraries enable hardware interrupts to be used on any pin of the nano
 #include <PinChangeInterruptBoards.h>
@@ -31,9 +31,9 @@ boolean serial = true;
 /* 
 * -------- Function Prototypes ----------
 */
-double getSpeed();                                                                  // Function for converting raw measured voltage into speed
-void plusISR();                                                                     // Interrupt Service Routine called when plus speed increment button is pressed
-void minusISR();                                                                    // Interrupt Service Routine called when minus speed increment button is pressed
+//double getSpeed();                                                                  // Function for converting raw measured voltage into speed
+//void plusISR();                                                                     // Interrupt Service Routine called when plus speed increment button is pressed
+//void minusISR();                                                                    // Interrupt Service Routine called when minus speed increment button is pressed
 //void logData(double Setpoint, double Input, double Output, unsigned long currTime); // Function that logs pertinent information to SD card
 //void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double Input, double Output, unsigned long currTime); // Function that prints pertinent information to serial monitor for debugging
 
@@ -57,7 +57,7 @@ const int numReadings = 10;
 int readings[numReadings];      // the readings from the analog input
 int readIndex = 0;              // the index of the current reading
 int total = 0;                  // the running total
-int average = 0
+int average = 0;
 
 // LCD hardware pins 
 int rs = 9; 
@@ -68,10 +68,12 @@ int d6 = 5;
 int d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7); // Sets up the LCD display 
 
+// Miscallaneous Variables
 int Tsig; // Signal incoming from the throttle trigger hall effect sensor
 int MC_Val;
 unsigned long currTime; // Used for logging time in diagnostics 
-File diagFile; // Creates a new file object 
+File diagFile; // Creates a new file object  
+int fileCounter; // Variable used for naming .txt file written to SD card 
 
 // Constants for converting DC generator voltage to speed in getSpeed() function
 double
@@ -150,7 +152,11 @@ void setup() {
         lcd.print("init. failed"); 
         delay(2000);
         return;
-      } 
+      }  
+       // Updating fileCounter variable 
+      fileCounter = EEPROM.read(0); 
+      fileCounter++;
+      EEPROM.write(0,fileCounter);
     }
     
     // Printing ready message
@@ -158,7 +164,12 @@ void setup() {
     lcd.setCursor(0,0);
     lcd.print("Ready");
     delay(3000); 
-    lcd.clear();
+    lcd.clear(); 
+    
+    
+   for (int thisReading = 0; thisReading < numReadings; thisReading++) {  // initializing readings array with zeros
+    readings[thisReading] = 0;
+   }
 
 } // END SETUP FUNCTION
 
@@ -182,10 +193,29 @@ void loop() {
    analogWrite(outputPin, 0); 
  }
  else {
-   analogWrite(outputPin, Tsig/4);
+  total = total - readings[readIndex]; // subtract the last reading:
+  // read from the sensor:
+  readings[readIndex] = Tsig/4;
+  // add the reading to the total:
+  total = total + readings[readIndex];
+  // advance to the next position in the array:
+  readIndex = readIndex + 1;
+
+  // if we're at the end of the array...
+  if (readIndex >= numReadings) {
+    // ...wrap around to the beginning:
+    readIndex = 0;
+  }
+
+  // calculate the average:
+  average = total / numReadings;
+   
+   analogWrite(outputPin, average);
  }
 
- if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime); // displays pertinent info to serial monitor 
+ if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
+ delay(50);
+ if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter);
 
  // CRUISE CONTROL INITIALIZATION
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
@@ -228,10 +258,16 @@ void loop() {
    // THE HANDOFF // Cruise Control now takes over signals to motor controller
    analogWrite(outputPin, 0); // turns the output from the nano off
    OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
-   analogWrite(outputPin, OutputWrite); // Writing output to motor controller
-
+   analogWrite(outputPin, OutputWrite); // Writing output to motor controller 
+   
+   delay(3000); // pause to allow user to let go of throttle 
+   //Tsig = 0; // Set Tsig equal to zero so that it does not trip the while loop coming up next
+   Serial.println("Entering The loop"); 
+   delay(3000);
+   Serial.println("Delay Over");
+   
    // CRUISE CONTROL LOOP
-   while(analogRead(Tpin) <= 195) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
+   while(analogRead(Tpin) <= 200) { // If the throttle is slightly moved past it's neutral position (~2V), exit the cruise control
     currTime = millis();
     Input = getSpeed();
     motorPID.Compute();
@@ -239,8 +275,12 @@ void loop() {
     analogWrite(outputPin, OutputWrite); // Writing output to motor controller
     
     // Log performance data to SD card and/or serial monitor if diagnostics enabled
-    if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime);
-    if(serial) serialData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime);
+    if(diag) logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter);
+    delay(50);
+    if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime);
+    
+    delay(50);
+    //Serial.println(analogRead(Tpin));
     
     //Updating the current speed on the LCD
     lcd.setCursor(9,1);
@@ -251,8 +291,11 @@ void loop() {
     lcd.print(Setpoint);
    } 
 
+Serial.println("Just Left Loop");
+delay(5000);
    // Cruise Control Disengaged
-   cruiseControlState = false;
+   cruiseControlState = false; 
+   Setpoint = 0; // Setting setpoint back to zero so it can be reinitialized next time cruise control is engaged
    
    delay(500);
    // Letting the user know the cruise control is disengaging
@@ -303,17 +346,20 @@ double getSpeed() {
 } 
 
 // function for logging performance information to an SD card for data logging
-void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime) {
-  diagFile = SD.open("test_4.txt", FILE_WRITE);
+void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter) {
+  String stringOne = String(fileCounter);
+  String fileName = String("TEST_" + stringOne + ".txt"); 
+  diagFile = SD.open(fileName, FILE_WRITE);
   if(diagFile) {  // Skips executing the function if the file did not open correctly
     
     if (cruiseControlState == true) {
-    diagFile.print("|CC_on, ");
+    diagFile.print(1);
     } else {
-    diagFile.print("|CC_off, ");
+    diagFile.print(0);
     }
+    diagFile.print(",");
     diagFile.print(Setpoint);
-    diagFile.print(",| ");
+    diagFile.print(",");
     //diagFile.print(Tsig * (5.0/1023.0));  // converts signal from throttle to a voltage
     diagFile.print(Tsig);  // Raw Tsig value from analogRead
     diagFile.print(",");
@@ -336,7 +382,7 @@ void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input
 } 
 
 // function for writing pertinent information to serial monitor for debugging
-void serialData(boolean cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime) { 
+void serialData(boolean cruiseControlState, double Setpoint, int Tsig, int average, double Input, double Output, unsigned long currTime) { 
   if (cruiseControlState == true) {
     Serial.print("|CC_on, ");
   } else {
@@ -347,7 +393,11 @@ void serialData(boolean cruiseControlState, double Setpoint, int Tsig, double In
   //Serial.print(Tsig * (5.0/1023.0));  // converts signal from throttle to a voltage
   Serial.print(Tsig);  // Raw Tsig value from analogRead
   Serial.print(",");
+  Serial.print(analogRead(A6));
+  Serial.print(",");
   Serial.print(Tsig/4);
+  Serial.print(","); 
+  Serial.print((int)average);
   Serial.print(",");
   Serial.print(Input);
   Serial.print(",");
@@ -355,8 +405,8 @@ void serialData(boolean cruiseControlState, double Setpoint, int Tsig, double In
   // Getting DC Generator Voltage
   double genVoltage = 2.0*(double)analogRead(genPin);   // Multiply by two to account for voltage divider
   genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
-  Serial.print(genVoltage);
-  Serial.print(",");
+  //Serial.print(genVoltage);
+  //Serial.print(",");
   
   //Serial.print(Output * (5.0/255.0));  // Output in voltage
   Serial.print(Output);  // Raw output value before analogWrite
