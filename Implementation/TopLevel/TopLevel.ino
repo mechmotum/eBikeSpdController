@@ -73,7 +73,14 @@ int Tsig; // Signal incoming from the throttle trigger hall effect sensor
 int MC_Val;
 unsigned long currTime; // Used for logging time in diagnostics 
 File diagFile; // Creates a new file object  
-int fileCounter; // Variable used for naming .txt file written to SD card 
+int fileCounter; // Variable used for naming .txt file written to SD card  
+
+// Variables used in loop timing 
+int loopStartState; 
+int ifState1; 
+int ifState2;
+int ifState3;
+int ifState4;
 
 // Constants for converting DC generator voltage to speed in getSpeed() function
 double
@@ -182,7 +189,7 @@ void loop() {
  // FLAGGING START OF LOOP
  if(diag) {
   loopStartState = 1; currTime = millis();
-  logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState); 
+  logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
  }
  
  // PASSING THROTTLE THROUGH THE NANO
@@ -191,7 +198,7 @@ void loop() {
    // FLAGGING START OF IF1
    if(diag) {
     ifState1 = 1; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1); 
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
     }
  
    // Printing message to let user know cruise control is off
@@ -231,7 +238,7 @@ void loop() {
    // FLAGGING END OF IF1
    if(diag) {
     ifState1 = 0; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1); 
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
     }
   }
 
@@ -241,7 +248,7 @@ void loop() {
    // FLAGGING START OF IF2
    if(diag) {
     ifState2 = 1; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2); 
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
     }
     
    cruiseControlState = true;
@@ -289,7 +296,7 @@ void loop() {
    // FLAGGING END OF IF2
    if(diag) {
     ifState2 = 0; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2); 
+    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
     }
  }
 
@@ -299,7 +306,7 @@ void loop() {
     // FLAGGING START OF IF3
     if(diag) {
      ifState3 = 1; currTime = millis();
-     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3); 
+     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
      }
     
     Input = getSpeed();
@@ -321,7 +328,7 @@ void loop() {
      // FLAGGING END OF IF3
     if(diag) {
      ifState3 = 0; currTime = millis();
-     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3); 
+     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
      }
     
    }
@@ -360,7 +367,7 @@ void loop() {
  // FLAGGING END OF LOOP
   if(diag) {
    loopStartState = 0; currTime = millis();
-   logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState); 
+   logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
   }
 
 } // END LOOP FUNCTION
@@ -395,7 +402,7 @@ double getSpeed() {
 } 
 
 // function for logging performance information to an SD card for data logging
-void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter) {
+void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter, int loopStartState, int ifState1, int ifState2, int ifState3, int ifState4) {
   String stringOne = String(fileCounter);
   String fileName = String("TEST_" + stringOne + ".txt"); 
   diagFile = SD.open(fileName, FILE_WRITE);
@@ -421,10 +428,16 @@ void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input
     diagFile.print(genVoltage);
     diagFile.print(",");
   
-    //diagFile.print(Output * (5.0/255.0));  // Output in voltage
     diagFile.print(Output);  // Raw output value before analogWrite
     diagFile.print(",");
     diagFile.println(currTime/1000.0);  
+    
+    // Printing Loop Timing Flags 
+    diagFile.print(loopStartState);
+    diagFile.print(ifState1);
+    diagFile.print(ifState2);
+    diagFile.print(ifState3);
+    diagFile.print(ifState4);
     
     diagFile.close();
     }
