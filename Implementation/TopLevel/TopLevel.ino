@@ -1,6 +1,6 @@
 /*               eBike Speed Controller Implementation Code             */               
 
-/// DESCRIPTION
+/// DESCRIPTION 
 ///  This code implements a PID controller designed in MATLAB digitally on an Arduino nano 
 ///   to control the speed of an instrumented ebike. 
 
