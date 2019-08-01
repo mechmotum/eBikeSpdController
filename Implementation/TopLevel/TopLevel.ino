@@ -27,16 +27,6 @@ boolean serial = true;
 #include <PinChangeInterruptPins.h>
 #include <PinChangeInterruptSettings.h>
 
-
-/* 
-* -------- Function Prototypes ----------
-*/
-//double getSpeed();                                                                  // Function for converting raw measured voltage into speed
-//void plusISR();                                                                     // Interrupt Service Routine called when plus speed increment button is pressed
-//void minusISR();                                                                    // Interrupt Service Routine called when minus speed increment button is pressed
-//void logData(double Setpoint, double Input, double Output, unsigned long currTime); // Function that logs pertinent information to SD card
-//void serialData(boolean cruiseControlState, double Setpoint, float Tsig, double Input, double Output, unsigned long currTime); // Function that prints pertinent information to serial monitor for debugging
-
 /* 
 * -------- Variable Declarations ---------
 */ 
@@ -80,7 +70,8 @@ int loopStartState;
 int ifState1; 
 int ifState2;
 int ifState3;
-int ifState4;
+int ifState4; 
+int cruiseControlState = 0; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
 // Constants for converting DC generator voltage to speed in getSpeed() function
 double
@@ -98,8 +89,6 @@ volatile double Setpoint = 0; // declared as volatile so that its value may be s
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
 int OutputWrite; // variable for writing output to motor controller as a PWM duty cycle
-
-boolean cruiseControlState = false; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
 /* 
 * ------------ Setup Function ------------ 
@@ -193,7 +182,7 @@ void loop() {
  }
  
  // PASSING THROTTLE THROUGH THE NANO
- if(cruiseControlState == false) {
+ if(cruiseControlState == 0) {
 
    // FLAGGING START OF IF1
    if(diag) {
@@ -235,6 +224,8 @@ void loop() {
   
    if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
    
+   Input = getSpeed(); // Acquiring input here for logging purposes
+   
    // FLAGGING END OF IF1
    if(diag) {
     ifState1 = 0; currTime = millis();
@@ -251,7 +242,7 @@ void loop() {
     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
     }
     
-   cruiseControlState = true;
+   cruiseControlState = 1; Tsig = 0;  // Setting Tsig to zero here so that it does not trigger the condition for cruise control disengagement presented below
    
    // Letting the user know they engaged the cruise control
    lcd.clear();
@@ -291,8 +282,6 @@ void loop() {
    OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
    analogWrite(outputPin, OutputWrite); // Writing output to motor controller 
    
-   delay(3000); // pause to allow user to let go of throttle 
-   
    // FLAGGING END OF IF2
    if(diag) {
     ifState2 = 0; currTime = millis();
@@ -301,7 +290,7 @@ void loop() {
  }
 
  // RUNNING THE PID ALGORITHM
- if(cruiseControlState == true) {
+ if(cruiseControlState == 1) {
     
     // FLAGGING START OF IF3
     if(diag) {
@@ -334,7 +323,7 @@ void loop() {
    }
 
  // CHECKING FOR CONDITIONS FOR CRUISE CONTROL DISENGAGEMENT
- if(analogRead(Tpin) >= 200 && cruiseControlState == true) {
+ if(analogRead(Tpin) >= 350 && cruiseControlState == 1) {
    
    // FLAGGING START OF IF4
     if(diag) {
@@ -342,7 +331,7 @@ void loop() {
      logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
      }
    
-   cruiseControlState == false;
+   cruiseControlState = 0;
    Setpoint = 0; Output = 0; // Setting setpoint and output back to zero so they can be reinitialized next time cruise control is engaged
    
    // Letting the user know the cruise control is disengaging
@@ -402,17 +391,13 @@ double getSpeed() {
 } 
 
 // function for logging performance information to an SD card for data logging
-void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter, int loopStartState, int ifState1, int ifState2, int ifState3, int ifState4) {
+void logData(int cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter, int loopStartState, int ifState1, int ifState2, int ifState3, int ifState4) {
   String stringOne = String(fileCounter);
   String fileName = String("TEST_" + stringOne + ".txt"); 
   diagFile = SD.open(fileName, FILE_WRITE);
   if(diagFile) {  // Skips executing the function if the file did not open correctly
     
-    if (cruiseControlState == true) {
-    diagFile.print(1);
-    } else {
-    diagFile.print(0);
-    }
+    diagFile.print(cruiseControlState);
     diagFile.print(",");
     diagFile.print(Setpoint);
     diagFile.print(",");
@@ -430,14 +415,22 @@ void logData(boolean cruiseControlState, double Setpoint, int Tsig, double Input
   
     diagFile.print(Output);  // Raw output value before analogWrite
     diagFile.print(",");
-    diagFile.println(currTime/1000.0);  
+    diagFile.print(currTime/1000.0);  
     
     // Printing Loop Timing Flags 
+    diagFile.print(",");
     diagFile.print(loopStartState);
+    diagFile.print(",");
     diagFile.print(ifState1);
+    diagFile.print(",");
     diagFile.print(ifState2);
-    diagFile.print(ifState3);
+    diagFile.print(",");
+    diagFile.print(ifState3); 
+    diagFile.print(",");
     diagFile.print(ifState4);
+    
+    diagFile.print(",");
+    diagFile.println(analogRead(A6));
     
     diagFile.close();
     }
