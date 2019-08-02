@@ -75,7 +75,7 @@ int cruiseControlState = 0; // Keeps track of whether or not cruise control is e
 
 // Variables for low pass filtering 
 double pastFiltrdSpd, d_pastFiltrdSpd, pastSpd, pastTime; 
-double cutoffFreq = 5;  // cutoff frequency in Hz
+double cutoffFreq = .25;  // cutoff frequency in Hz
 struct filtrdVals {     // structure definition used to return two values from the low pass filter function call
   double filtrdRdng; 
   double d_filtrdRdng;
