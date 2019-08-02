@@ -25,7 +25,7 @@ boolean serial = true;
 #include <PinChangeInterrupt.h>  // The following libraries enable hardware interrupts to be used on any pin of the nano
 #include <PinChangeInterruptBoards.h>
 #include <PinChangeInterruptPins.h>
-#include <PinChangeInterruptSettings.h>
+#include <PinChangeInterruptSettings.h> 
 
 /* 
 * -------- Variable Declarations ---------
@@ -73,6 +73,14 @@ int ifState3;
 int ifState4; 
 int cruiseControlState = 0; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
+// Variables for low pass filtering 
+double pastFiltrdSpd, d_pastFiltrdSpd, pastSpd, pastTime; 
+double cutoffFreq = 5;  // cutoff frequency in Hz
+struct filtrdVals {     // structure definition used to return two values from the low pass filter function call
+  double filtrdRdng; 
+  double d_filtrdRdng;
+};
+
 // Constants for converting DC generator voltage to speed in getSpeed() function
 double
 sf = 2*3.1415/60,     /* from dissertation */ \
@@ -88,7 +96,7 @@ double kp = 1.03, ki = 0.145, kd = 0; // Constants Acquired From Controller Desi
 volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
-int OutputWrite; // variable for writing output to motor controller as a PWM duty cycle
+int OutputWrite; // variable for writing output to motor controller as a PWM duty cycle 
 
 /* 
 * ------------ Setup Function ------------ 
@@ -381,13 +389,55 @@ void minusISR() {
   }
 }
 
-// function for converting generator voltage reading into actual velocity 
+// function for 2nd order Butterworth low pass filter 
+// This function is based on the one implemented here: 
+// https://gitlab.com/mechmotum/row_filter/blob/master/row_filter/complementary.py
+struct filtrdVals lowPassFilter(double cutoffFreq, double dt, double currentRdng, double pastRdng, double pastFiltrdRdng, double d_pastFiltrdRdng) {
+  
+  struct filtrdVals vals;
+  
+  // Comput coefficients of the state equation 
+  double a = pow((2 * M_PI * cutoffFreq), 2);
+  double b = pow(2,0.5) * 2 * M_PI * cutoffFreq;
+  
+  // Integrate the filter state equation using the midpoint Euler method with time step h 
+  double h = dt; 
+  double denom = 4 + 2*h*b + pow(h,2)*a;
+  
+  double A = (4 + 2*h*b - pow(h,2)*a)/denom;
+  double B = 4*h/denom; 
+  double C = -4*h*a/denom; 
+  double D = (4 - 2*h*b - pow(h,2)*a)/denom; 
+  double E = 2*pow(h,2)*a/denom; 
+  double F = 4*h*a/denom; 
+  
+  vals.filtrdRdng = A*pastFiltrdRdng + B*d_pastFiltrdRdng + E*(currentRdng + pastRdng)/2; 
+  vals.d_filtrdRdng = C*pastFiltrdRdng + D*d_pastFiltrdRdng + F*(currentRdng + pastRdng)/2;
+  
+  return vals;
+}
+
+// function for converting generator voltage reading into velocity 
 // See: http://moorepants.github.io/dissertation/davisbicycle.html#calibration 
 double getSpeed() {
-  double genVoltage = 2.0*(double)analogRead(genPin); 
+  
+  double genVoltage = 2.0*(double)analogRead(genPin); // Multiplying by two to account for the voltage divider circuit
   genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
-  double speed = (sf*(m*genVoltage+b)*rR*rD)/rC;
-  return speed;
+  
+  // Converting voltage to speed
+  double speed = (sf*(m*genVoltage+b)*rR*rD)/rC; // Calibration equation from http://moorepants.github.io/dissertation/davisbicycle.html#calibration 
+  
+  // Filtering Speed 
+  double dt = millis() - pastTime; // pastTime is the time at which this function was last called
+  struct filtrdVals vals = lowPassFilter(cutoffFreq, dt, speed, pastSpd, pastFiltrdSpd, d_pastFiltrdSpd);
+  
+  // Updating global variables with new "past" values 
+  pastSpd = speed;                          // This is the current unfiltered speed value
+  pastFiltrdSpd = vals.filtrdRdng;          // This is the current filtered speed value
+  d_pastFiltrdSpd = vals.d_filtrdRdng;      // This is the current derivative of the filtered speed value
+  pastTime = millis();                      // This is the current time
+  
+  return vals.filtrdRdng; // Returns the filtered speed
 } 
 
 // function for logging performance information to an SD card for data logging
