@@ -38,9 +38,13 @@ Gc = pid(1.01,0.108,0);
 sys_cl = feedback(Gc*Gp,1); 
 
 % Plotting Closed Loop and Open Loop Step Responses For Samples of the Uncertain Plant Model 
-subplot(2,1,1); step(Gp.NominalValue,'r-+',usample(Gp,20),'b',3), title('Plant response (20 samples)')
-subplot(2,1,2); step(sys_cl.NominalValue,'r-+',usample(sys_cl,20),'b',3), title('Closed-loop response (20 samples)')
+%subplot(2,1,1); step(Gp.NominalValue,'r-+',usample(Gp,20),'b',3), title('Plant response (20 samples)')
+%subplot(2,1,2); 
+figure();
+step(sys_cl.NominalValue,'r-+',usample(sys_cl,20),'b',3), title('Closed-loop response (20 samples)')
 legend('Nominal','Samples')
+
+%% Looking at discturbance rejection performance
 
 % Robustness of Disturbance Rejections 
 S = feedback(1,Gp*C); % Sensitivity Function
