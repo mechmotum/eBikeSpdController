@@ -12,7 +12,7 @@
 
 // Sets code mode to run system diagnostics. This enables or disables logging information to the micro SD card. Additionally, serial monitoring can be toggled on and off here.
 boolean diag = true;
-boolean serial = true;
+boolean serial = false;
 
 /* 
 * -------- Code Libraries --------
@@ -99,7 +99,7 @@ rC = 0.333375         /* from dissertation [m] */ \
 ;
 
 // PID Setup 
-double kp = 1.03, ki = 0.145, kd = 0.7; // Constants Acquired From Controller Design Stage
+double kp = 1.03, ki = 0.145, kd = 0.001; // Constants Acquired From Controller Design Stage
 volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
@@ -180,7 +180,9 @@ void setup() {
     
    for (int thisReading = 0; thisReading < numReadings; thisReading++) {  // initializing readings array with zeros
     readings[thisReading] = 0;
-   }
+   } 
+   
+   lcd.clear();
 
 } // END SETUP FUNCTION
 
@@ -204,12 +206,6 @@ void loop() {
     //ifState1 = 1; currTime = millis();
     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
     //}
- 
-   // Printing message to let user know cruise control is off
-   lcd.setCursor(0,0);
-   lcd.print("Cruise Control");
-   lcd.setCursor(0,1);
-   lcd.print("Off");
    
    // Passing throttle signal through the Arduino 
    Tsig = analogRead(Tpin); 
@@ -240,6 +236,12 @@ void loop() {
    if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
    
    Input = getSpeed(); // Acquiring input here for logging purposes
+   
+   // Printing current speed on LCD
+   lcd.setCursor(0,0);
+   lcd.print("Current Spd");
+   lcd.setCursor(0,1);
+   lcd.print(Input);
    
    // FLAGGING END OF IF1
    if(diag) {
