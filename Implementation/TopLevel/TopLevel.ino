@@ -74,12 +74,19 @@ int ifState4;
 int cruiseControlState = 0; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
 
 // Variables for low pass filtering 
-double pastFiltrdSpd, d_pastFiltrdSpd, pastSpd, pastTime; 
-double cutoffFreq = .25;  // cutoff frequency in Hz
+double pastFiltrdSpd = 0, d_pastFiltrdSpd = 0, pastSpd = 0, pastTime = 0; 
+//double cutoffFreq = .25;  // cutoff frequency in Hz
+//double cutoffFreq = 5;
+//double cutoffFreq = 2;
+double cutoffFreq = .001;
+//double cutoffFreq = .0005;
 struct filtrdVals {     // structure definition used to return two values from the low pass filter function call
   double filtrdRdng; 
-  double d_filtrdRdng;
-};
+  double d_filtrdRdng; 
+  double unfiltrdRdng;
+}; 
+double unfiltrdGenVoltage; // declared here as a global variable to log to SD card 
+double filtrdGenVoltage; // declared here as a global variable to log to SD card 
 
 // Constants for converting DC generator voltage to speed in getSpeed() function
 double
@@ -92,7 +99,7 @@ rC = 0.333375         /* from dissertation [m] */ \
 ;
 
 // PID Setup 
-double kp = 1.03, ki = 0.145, kd = 0; // Constants Acquired From Controller Design Stage
+double kp = 1.03, ki = 0.145, kd = 0.7; // Constants Acquired From Controller Design Stage
 volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
@@ -184,19 +191,19 @@ void setup() {
 void loop() { 
  
  // FLAGGING START OF LOOP
- if(diag) {
-  loopStartState = 1; currTime = millis();
-  logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
- }
+ //if(diag) {
+  //loopStartState = 1; currTime = millis();
+  //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+ //}
  
  // PASSING THROTTLE THROUGH THE NANO
  if(cruiseControlState == 0) {
 
    // FLAGGING START OF IF1
-   if(diag) {
-    ifState1 = 1; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-    }
+   //if(diag) {
+    //ifState1 = 1; currTime = millis();
+    //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+    //}
  
    // Printing message to let user know cruise control is off
    lcd.setCursor(0,0);
@@ -245,10 +252,10 @@ void loop() {
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
 
    // FLAGGING START OF IF2
-   if(diag) {
-    ifState2 = 1; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-    }
+   //if(diag) {
+    //ifState2 = 1; currTime = millis();
+    //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+    //}
     
    cruiseControlState = 1; Tsig = 0;  // Setting Tsig to zero here so that it does not trigger the condition for cruise control disengagement presented below
    
@@ -257,7 +264,7 @@ void loop() {
    lcd.print("Cruise Control");
    lcd.setCursor(0,1);
    lcd.print("Engaged");
-   delay(2000);
+   delay(2000);     
    
    float currSpeed = getSpeed(); 
    currSpeed = 0.1*round(currSpeed*10.0); // rounds the current speed to the nearest 0.1m/s
@@ -291,20 +298,20 @@ void loop() {
    analogWrite(outputPin, OutputWrite); // Writing output to motor controller 
    
    // FLAGGING END OF IF2
-   if(diag) {
-    ifState2 = 0; currTime = millis();
-    logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-    }
+   //if(diag) {
+    //ifState2 = 0; currTime = millis();
+    //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+    //}
  }
 
  // RUNNING THE PID ALGORITHM
  if(cruiseControlState == 1) {
     
     // FLAGGING START OF IF3
-    if(diag) {
-     ifState3 = 1; currTime = millis();
-     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-     }
+    //if(diag) {
+     //ifState3 = 1; currTime = millis();
+     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+     //}
     
     Input = getSpeed();
     motorPID.Compute();
@@ -334,10 +341,10 @@ void loop() {
  if(analogRead(Tpin) >= 350 && cruiseControlState == 1) {
    
    // FLAGGING START OF IF4
-    if(diag) {
-     ifState4 = 1; currTime = millis();
-     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-     }
+    //if(diag) {
+     //ifState4 = 1; currTime = millis();
+     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+     //}
    
    cruiseControlState = 0;
    Setpoint = 0; Output = 0; // Setting setpoint and output back to zero so they can be reinitialized next time cruise control is engaged
@@ -354,18 +361,18 @@ void loop() {
    lcd.clear(); 
    
    // FLAGGING END OF IF4
-    if(diag) {
-     ifState4 = 0; currTime = millis();
-     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-     }
+    //if(diag) {
+     //ifState4 = 0; currTime = millis();
+     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+     //}
    
    }  
 
  // FLAGGING END OF LOOP
-  if(diag) {
-   loopStartState = 0; currTime = millis();
-   logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-  }
+  //if(diag) {
+   //loopStartState = 0; currTime = millis();
+   //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
+  //}
 
 } // END LOOP FUNCTION
 
@@ -411,6 +418,7 @@ struct filtrdVals lowPassFilter(double cutoffFreq, double dt, double currentRdng
   double E = 2*pow(h,2)*a/denom; 
   double F = 4*h*a/denom; 
   
+  vals.unfiltrdRdng = currentRdng;
   vals.filtrdRdng = A*pastFiltrdRdng + B*d_pastFiltrdRdng + E*(currentRdng + pastRdng)/2; 
   vals.d_filtrdRdng = C*pastFiltrdRdng + D*d_pastFiltrdRdng + F*(currentRdng + pastRdng)/2;
   
@@ -421,24 +429,29 @@ struct filtrdVals lowPassFilter(double cutoffFreq, double dt, double currentRdng
 // See: http://moorepants.github.io/dissertation/davisbicycle.html#calibration 
 double getSpeed() {
   
-  double genVoltage = 2.0*(double)analogRead(genPin); // Multiplying by two to account for the voltage divider circuit
+  unfiltrdGenVoltage = (double)analogRead(genPin); 
+  
+  // Filtering analogRead 
+  double dt = millis() - pastTime; // pastTime is the time at which this function was last called
+  struct filtrdVals vals = lowPassFilter(cutoffFreq, dt, unfiltrdGenVoltage, pastSpd, pastFiltrdSpd, d_pastFiltrdSpd);
+  
+  // Updating global variables with new "past" values 
+  pastSpd = vals.unfiltrdRdng;              // This is the current unfiltered speed value
+  pastFiltrdSpd = vals.filtrdRdng;          // This is the current filtered speed value
+  d_pastFiltrdSpd = vals.d_filtrdRdng;      // This is the current derivative of the filtered speed value
+  pastTime = millis();                      // This is the current time
+  
+  // Transforming genVoltage to a voltage value
+  filtrdGenVoltage = vals.filtrdRdng;     // updating global variable for logging purposes
+  double genVoltage = 2.0*vals.filtrdRdng; // multiply by 2 to account for the voltage divider
   genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
   
   // Converting voltage to speed
   double speed = (sf*(m*genVoltage+b)*rR*rD)/rC; // Calibration equation from http://moorepants.github.io/dissertation/davisbicycle.html#calibration 
   
-  // Filtering Speed 
-  double dt = millis() - pastTime; // pastTime is the time at which this function was last called
-  struct filtrdVals vals = lowPassFilter(cutoffFreq, dt, speed, pastSpd, pastFiltrdSpd, d_pastFiltrdSpd);
-  
-  // Updating global variables with new "past" values 
-  pastSpd = speed;                          // This is the current unfiltered speed value
-  pastFiltrdSpd = vals.filtrdRdng;          // This is the current filtered speed value
-  d_pastFiltrdSpd = vals.d_filtrdRdng;      // This is the current derivative of the filtered speed value
-  pastTime = millis();                      // This is the current time
-  
-  return vals.filtrdRdng; // Returns the filtered speed
+  return speed; // Returns the filtered speed
 } 
+
 
 // function for logging performance information to an SD card for data logging
 void logData(int cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter, int loopStartState, int ifState1, int ifState2, int ifState3, int ifState4) {
@@ -458,9 +471,7 @@ void logData(int cruiseControlState, double Setpoint, int Tsig, double Input, do
     diagFile.print(",");
 
     // Getting DC Generator Voltage
-    double genVoltage = 2.0*analogRead(genPin); // multiply by two to account for voltage divider 
-    genVoltage = genVoltage*(5.0/1023.0); // Converts digital output of analogRead to voltage
-    diagFile.print(genVoltage);
+    diagFile.print(filtrdGenVoltage);
     diagFile.print(",");
   
     diagFile.print(Output);  // Raw output value before analogWrite
@@ -480,7 +491,7 @@ void logData(int cruiseControlState, double Setpoint, int Tsig, double Input, do
     diagFile.print(ifState4);
     
     diagFile.print(",");
-    diagFile.println(analogRead(A6));
+    diagFile.println(unfiltrdGenVoltage);
     
     diagFile.close();
     }
