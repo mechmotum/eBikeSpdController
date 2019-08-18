@@ -99,7 +99,7 @@ rC = 0.333375         /* from dissertation [m] */ \
 ;
 
 // PID Setup 
-double kp = 1.03, ki = 0.145, kd = 0.001; // Constants Acquired From Controller Design Stage
+double kp = 1.03, ki = 0.145, kd = 0.05; // Constants Acquired From Controller Design Stage
 volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
@@ -262,11 +262,11 @@ void loop() {
    cruiseControlState = 1; Tsig = 0;  // Setting Tsig to zero here so that it does not trigger the condition for cruise control disengagement presented below
    
    // Letting the user know they engaged the cruise control
-   lcd.clear();
-   lcd.print("Cruise Control");
-   lcd.setCursor(0,1);
-   lcd.print("Engaged");
-   delay(2000);     
+   //lcd.clear();
+   //lcd.print("Cruise Control");
+   //lcd.setCursor(0,1);
+   //lcd.print("Engaged");
+   //delay(5000);     
    
    float currSpeed = getSpeed(); 
    currSpeed = 0.1*round(currSpeed*10.0); // rounds the current speed to the nearest 0.1m/s
@@ -340,7 +340,7 @@ void loop() {
    }
 
  // CHECKING FOR CONDITIONS FOR CRUISE CONTROL DISENGAGEMENT
- if(analogRead(Tpin) >= 350 && cruiseControlState == 1) {
+ if(analogRead(Tpin) >= 700 && cruiseControlState == 1) {     // Threshoat 700 (~3.5V) was 350
    
    // FLAGGING START OF IF4
     //if(diag) {
