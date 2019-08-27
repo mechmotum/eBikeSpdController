@@ -1,4 +1,4 @@
-       %%% <Controller Robustness Testing> %%% 
+  %%% <Controller Robustness Testing> %%% 
 
 %%%% -- This is the third code used in the controller design process -- %%%%
 
@@ -18,21 +18,21 @@ close all
 
 %%%%%% PLANT MODEL %%%%%% (Identified from the system identification step)
 %%%
-%%% v(s)/V(s) = 8.31 / (s^2 + 70.82*s + 7.543 ) 
+%%% v(s)/V(s) = 15.32 / (s^2 + 70.81*s + 7.34 ) 
 %%% v(s)/V(s) == d / (a*s^2 + b*s + c )
 %%%
 %%%%%% %%%%%% %%%%%% %%%%%
 
 % Establishing Uncertain Plant Model Based on Percentage Based Uncertainties In Plant Model Coefficeints
 a = ureal('a', 1, 'Percentage',30);
-b = ureal('b', 70.83, 'Percentage',30);
-c = ureal('c', 7.542, 'Percentage',30);
-d = ureal('d', 8.308, 'Percentage',30); 
+b = ureal('b', 70.81, 'Percentage',30);
+c = ureal('c', 7.34, 'Percentage',30);
+d = ureal('d', 15.32, 'Percentage',30); 
 Gp = tf(d, [a b c]); 
 
 % Tuned Controller Acquired From ControllerTuning.m 
 % Gc = pid(68.5,106,1.44);
-Gc = pid(1.01,0.108,0);
+Gc = pid(1.03,0.145,0.05);
 
 % Closed Loop System
 sys_cl = feedback(Gc*Gp,1); 
@@ -41,8 +41,34 @@ sys_cl = feedback(Gc*Gp,1);
 %subplot(2,1,1); step(Gp.NominalValue,'r-+',usample(Gp,20),'b',3), title('Plant response (20 samples)')
 %subplot(2,1,2); 
 figure();
-step(sys_cl.NominalValue,'r-+',usample(sys_cl,20),'b',3), title('Closed-loop response (20 samples)')
-legend('Nominal','Samples')
+pos = get(gcf, 'Position');
+width = 7; % width in inches 
+height = 6; % height in inches
+set(gcf, 'Position', [pos(1) pos(2) width*100 height*100])
+
+step(usample(sys_cl,15),'b');
+
+hold on 
+
+[y2, t2] = step(sys_cl.NominalValue);
+p2 = plot(t2,y2,'r','LineWidth',2.5);
+
+
+title('Uncertain Plant Closed-Loop Step Response (15 Samples)', 'FontSize',14)
+legend({'Uncertain Plants','Nominal Plant'},'FontSize',16,'location','SouthEast') 
+ylabel('Speed (m/s)','FontSize',16,'FontName','Minion Pro')
+xlabel('Time','FontSize',16)
+
+% Preserving the size of the image when saving 
+set(gcf,'InvertHardcopy','on');
+set(gcf,'PaperUnits', 'inches');
+papersize = get(gcf, 'PaperSize');
+left = (papersize(1)- width)/2;
+bottom = (papersize(2)- height)/2;
+myfiguresize = [left, bottom, width, height];
+set(gcf,'PaperPosition', myfiguresize);
+
+print('RobustnessPlot_700dpi','-depsc2','-r700')
 
 %% Looking at discturbance rejection performance
 
@@ -67,8 +93,3 @@ maxgain.LowerBound
 step(Sworst,'b',S.NominalValue,'r-+',6);
 title('Disturbance Rejection')
 legend('Worst-case','Nominal')
-
-
-
-
-
