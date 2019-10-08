@@ -114,17 +114,10 @@ fprintf('The identified plant model is:'); display(Gp)
 %% Generating Plot for Paper 
 figure();
 
-% goldenRatio = (1 + sqrt(5)) / 2;
-% figWidth = 1.0;
-% figHeight = figWidth / goldenRatio;
-% set(gcf, ...
-%     'Color', [1, 1, 1], ...
-%     'PaperOrientation', 'portrait', ...
-%     'PaperUnits', 'inches', ...
-%     'PaperPositionMode', 'manual', ...
-%     'OuterPosition', [424, 305 - 50, 518, 465], ...
-%     'PaperPosition', [0, 0, figWidth, figHeight], ...
-%     'PaperSize', [figWidth, figHeight])
+pos = get(gcf, 'Position');
+width = 7; % width in inches 
+height = 6; % height in inches
+set(gcf, 'Position', [pos(1) pos(2) width*100 height*100])
 
 plot(xdata,ydata,'r',t_2,time_response(x,t_2),'b', 'LineWidth', 2 )  
 
@@ -150,4 +143,13 @@ set(h, ...
     'Position', rect, ... 
     'FontSize', 12);  
 
-print('SysIDPlot','-dpng','-r300')
+% Preserving the size of the image when saving 
+set(gcf,'InvertHardcopy','on');
+set(gcf,'PaperUnits', 'inches');
+papersize = get(gcf, 'PaperSize');
+left = (papersize(1)- width)/2;
+bottom = (papersize(2)- height)/2;
+myfiguresize = [left, bottom, width, height];
+set(gcf,'PaperPosition', myfiguresize);
+
+print('SysIDPlot','-depsc2','-r600')
