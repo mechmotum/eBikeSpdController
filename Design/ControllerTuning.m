@@ -55,7 +55,7 @@ Gp = tf(15.32,[1,70.81,7.34]);
 %controlSystemDesigner('rlocus',Gp)
 
 %%%%%% Declaring the Control Architecture %%%%%%
-Gc = pid(1.03,0.145,0); % PID constants found from using controller tuning app
+Gc = pid(1.03,0.145,0.05); % PID constants found from using controller tuning app
 sys_cl = feedback(Gc*Gp,1); % Declaring a unity feedback control architecture with the plant model Gp and PID Controller Gc
 
 % Simulating the Closed Loop Step Response

@@ -8,11 +8,11 @@
 ///  PID_v1 library can be downloaded from here: https://github.com/br3ttb/Arduino-PID-Library
 ///   PinChangeInterrupt Library can be downloaded from here: https://github.com/GreyGnome/PinChangeInt
 ///    Tutorial for PinChangeInterrupt Library can be found here https://www.brainy-bits.com/make-any-arduino-pin-an-interrupt-pin/
-///     This code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal 
+///     Some of this code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal 
 
 // Sets code mode to run system diagnostics. This enables or disables logging information to the micro SD card. Additionally, serial monitoring can be toggled on and off here.
-boolean diag = true;
-boolean serial = false;
+boolean diag = true; // toggles SD card logging
+boolean serial = false; // toggles serial monitoring
 
 /* 
 * -------- Code Libraries --------
@@ -42,7 +42,7 @@ int csPin = 4;      // Chip select pin for SPI communication with the SD Card Mo
 volatile unsigned long lastInterruptTimePlus = 0;
 volatile unsigned long lastInterruptTimeMinus = 0; 
 
-// Variables Used For Signal Averaging 
+// Variables Used For Throttle Signal Averaging When Cruise Control is Off 
 const int numReadings = 10;
 int readings[numReadings];      // the readings from the analog input
 int readIndex = 0;              // the index of the current reading
@@ -60,33 +60,28 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7); // Sets up the LCD display
 
 // Miscallaneous Variables
 int Tsig; // Signal incoming from the throttle trigger hall effect sensor
-int MC_Val;
 unsigned long currTime; // Used for logging time in diagnostics 
 File diagFile; // Creates a new file object  
 int fileCounter; // Variable used for naming .txt file written to SD card  
 
-// Variables used in loop timing 
+// Variables used in loop timing for diagnostic purposes
 int loopStartState; 
 int ifState1; 
 int ifState2;
 int ifState3;
 int ifState4; 
 int cruiseControlState = 0; // Keeps track of whether or not cruise control is engaged or not. Default is disengaged.
+double unfiltrdGenVoltage; // declared here as a global variable to log to SD card 
+double filtrdGenVoltage; // declared here as a global variable to log to SD card 
 
 // Variables for low pass filtering 
 double pastFiltrdSpd = 0, d_pastFiltrdSpd = 0, pastSpd = 0, pastTime = 0; 
-//double cutoffFreq = .25;  // cutoff frequency in Hz
-//double cutoffFreq = 5;
-//double cutoffFreq = 2;
-double cutoffFreq = .001;
-//double cutoffFreq = .0005;
+double cutoffFreq = .001; // cutoff frequency in Hz
 struct filtrdVals {     // structure definition used to return two values from the low pass filter function call
   double filtrdRdng; 
   double d_filtrdRdng; 
   double unfiltrdRdng;
 }; 
-double unfiltrdGenVoltage; // declared here as a global variable to log to SD card 
-double filtrdGenVoltage; // declared here as a global variable to log to SD card 
 
 // Constants for converting DC generator voltage to speed in getSpeed() function
 double
@@ -98,9 +93,9 @@ rD = 0.028985,        /* from dissertation [m] */ \
 rC = 0.333375         /* from dissertation [m] */ \ 
 ;
 
-// PID Setup 
+// PID Library Setup 
 double kp = 1.03, ki = 0.145, kd = 0.05; // Constants Acquired From Controller Design Stage
-volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the ISR and the main program
+volatile double Setpoint = 0; // declared as volatile so that its value may be shared between the button Interrupt Service Routine Functions and the main program
 double Input, Output;
 PID motorPID(&Input, &Output, &Setpoint, kp, ki, kd, P_ON_M, DIRECT); // Creates PID object. See PID library documentation
 int OutputWrite; // variable for writing output to motor controller as a PWM duty cycle 
@@ -143,8 +138,6 @@ void setup() {
     
     // Diagnostics
     if (diag) {
-      // SD Card Module Pins
-      //pinMode(csPin, OUTPUT);
       
       // SD Card Initialization
       if (SD.begin()) {
@@ -177,7 +170,7 @@ void setup() {
     delay(3000); 
     lcd.clear(); 
     
-    
+   // Prepping for signal averaging of the throttle signal when cruise control is off 
    for (int thisReading = 0; thisReading < numReadings; thisReading++) {  // initializing readings array with zeros
     readings[thisReading] = 0;
    } 
@@ -192,20 +185,8 @@ void setup() {
 */
 void loop() { 
  
- // FLAGGING START OF LOOP
- //if(diag) {
-  //loopStartState = 1; currTime = millis();
-  //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
- //}
- 
  // PASSING THROTTLE THROUGH THE NANO
  if(cruiseControlState == 0) {
-
-   // FLAGGING START OF IF1
-   //if(diag) {
-    //ifState1 = 1; currTime = millis();
-    //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-    //}
    
    // Passing throttle signal through the Arduino 
    Tsig = analogRead(Tpin); 
@@ -213,6 +194,7 @@ void loop() {
      analogWrite(outputPin, 0); 
    }
    else {
+    // Begin Averaging of the Throttle Signal
     total = total - readings[readIndex]; // subtract the last reading:
     // read from the sensor:
     readings[readIndex] = Tsig/4;
@@ -243,7 +225,7 @@ void loop() {
    lcd.setCursor(0,1);
    lcd.print(Input);
    
-   // FLAGGING END OF IF1
+   // Logging Data For Diagnostics
    if(diag) {
     ifState1 = 0; currTime = millis();
     logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
@@ -252,22 +234,10 @@ void loop() {
 
  // CRUISE CONTROL INITIALIZATION
  if(digitalRead(plusPin) == LOW && digitalRead(minusPin) == LOW) {  // If the user has activated the cruise control 
-
-   // FLAGGING START OF IF2
-   //if(diag) {
-    //ifState2 = 1; currTime = millis();
-    //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-    //}
     
-   cruiseControlState = 1; Tsig = 0;  // Setting Tsig to zero here so that it does not trigger the condition for cruise control disengagement presented below
+   cruiseControlState = 1; Tsig = 0;  // Setting Tsig to zero here so that it does not trigger the condition for cruise control disengagement presented below     
    
-   // Letting the user know they engaged the cruise control
-   //lcd.clear();
-   //lcd.print("Cruise Control");
-   //lcd.setCursor(0,1);
-   //lcd.print("Engaged");
-   //delay(5000);     
-   
+   // Setting the current speed as the initial setpoint speed
    float currSpeed = getSpeed(); 
    currSpeed = 0.1*round(currSpeed*10.0); // rounds the current speed to the nearest 0.1m/s
    Setpoint = currSpeed; 
@@ -294,27 +264,16 @@ void loop() {
    Input = getSpeed(); // measures the new current speed as the input to the PID algorithim
    motorPID.Compute(); // computes the output 
 
-   // THE HANDOFF // Cruise Control now takes over signals to motor controller
+   // THE HANDOFF // Cruise Control now takes over passing throttle signal to the motor controller
    analogWrite(outputPin, 0); // turns the output from the nano off
    OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
    analogWrite(outputPin, OutputWrite); // Writing output to motor controller 
-   
-   // FLAGGING END OF IF2
-   //if(diag) {
-    //ifState2 = 0; currTime = millis();
-    //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-    //}
  }
 
  // RUNNING THE PID ALGORITHM
  if(cruiseControlState == 1) {
-    
-    // FLAGGING START OF IF3
-    //if(diag) {
-     //ifState3 = 1; currTime = millis();
-     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-     //}
-    
+
+    // Computing PID Output
     Input = getSpeed();
     motorPID.Compute();
     OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
@@ -331,7 +290,7 @@ void loop() {
     lcd.setCursor(7,0);
     lcd.print(Setpoint);
     
-     // FLAGGING END OF IF3
+     // Logging Data For Diagnostics
     if(diag) {
      ifState3 = 0; currTime = millis();
      logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
@@ -340,13 +299,7 @@ void loop() {
    }
 
  // CHECKING FOR CONDITIONS FOR CRUISE CONTROL DISENGAGEMENT
- if(analogRead(Tpin) >= 700 && cruiseControlState == 1) {     // Threshoat 700 (~3.5V) was 350
-   
-   // FLAGGING START OF IF4
-    //if(diag) {
-     //ifState4 = 1; currTime = millis();
-     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-     //}
+ if(analogRead(Tpin) >= 700 && cruiseControlState == 1) {     // Threshoat 700 bits (~3.5V) 
    
    cruiseControlState = 0;
    Setpoint = 0; Output = 0; // Setting setpoint and output back to zero so they can be reinitialized next time cruise control is engaged
@@ -362,19 +315,7 @@ void loop() {
    delay(2000);
    lcd.clear(); 
    
-   // FLAGGING END OF IF4
-    //if(diag) {
-     //ifState4 = 0; currTime = millis();
-     //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-     //}
-   
    }  
-
- // FLAGGING END OF LOOP
-  //if(diag) {
-   //loopStartState = 0; currTime = millis();
-   //logData(cruiseControlState, Setpoint, Tsig, Input, Output, currTime, fileCounter, loopStartState, ifState1, ifState2, ifState3, ifState4); 
-  //}
 
 } // END LOOP FUNCTION
 
@@ -383,7 +324,7 @@ void loop() {
 * -------------- Utility Functions ----------- 
 */
 
-// The following two functions are the Interrupt Service Routine (ISR) called when either the plus or minus buttons are pressed. 
+// The following two functions are the Interrupt Service Routines (ISR) called when either the plus or minus buttons are pressed. 
 // Each function contains an if statement that evaluates the amount of time that has passed since the last time the ISR was called, effectively debouncing the button
 void plusISR() {
   if (millis() - lastInterruptTimePlus > 500) {
@@ -455,7 +396,7 @@ double getSpeed() {
 } 
 
 
-// function for logging performance information to an SD card for data logging
+// function for logging performance information to an SD card for data logging. This function is totally customizable to display whatever is deemed necessary
 void logData(int cruiseControlState, double Setpoint, int Tsig, double Input, double Output, unsigned long currTime, int fileCounter, int loopStartState, int ifState1, int ifState2, int ifState3, int ifState4) {
   String stringOne = String(fileCounter);
   String fileName = String("TEST_" + stringOne + ".txt"); 
@@ -499,7 +440,7 @@ void logData(int cruiseControlState, double Setpoint, int Tsig, double Input, do
     }
 } 
 
-// function for writing pertinent information to serial monitor for debugging
+// function for writing pertinent information to serial monitor for debugging. This function is totally customizable to display whatever is deemed necessary
 void serialData(boolean cruiseControlState, double Setpoint, int Tsig, int average, double Input, double Output, unsigned long currTime) { 
   if (cruiseControlState == true) {
     Serial.print("|CC_on, ");
