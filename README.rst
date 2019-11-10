@@ -1,7 +1,7 @@
 eBikeSpdController
 ==================
 
-This repo contains the source files for the design, implementation and testing of a cruise control system for an instrumented electric bicycle.  
+This repo contains the source files for the design, implementation and testing of a cruise control system for an instrumented electric bicycle. Additionally, this repo contains project documentation in the form of a user/technical guide and master electrical schematic for the cruise control system. Newcomers to this project should begin by reading the user/technical guide.  
 
 Controller Design Source Code
 -----------------------------
