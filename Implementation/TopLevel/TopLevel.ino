@@ -11,7 +11,7 @@
 ///     Some of this code is based on Nicholas Chan's code for implementing a PID controller on a camera gimbal which can be found here: https://github.com/DavisDroneClub/gimbal 
 
 // Sets code mode to run system diagnostics. This enables or disables logging information to the micro SD card. Additionally, serial monitoring can be toggled on and off here.
-boolean diag = true; // toggles SD card logging
+boolean diag = false; // toggles SD card logging
 boolean serial = false; // toggles serial monitoring
 
 /* 
@@ -120,13 +120,14 @@ void setup() {
     attachPCINT (digitalPinToPCINT(minusPin), minusISR, RISING);
     
     // Declaring pin modes for hardware I/O
-    pinMode(genPin, INPUT);
-    pinMode(Tpin, INPUT);
-    pinMode(plusPin, INPUT);
-    pinMode(minusPin, INPUT);
-    pinMode(outputPin, OUTPUT);
+    pinMode(genPin, INPUT);            // Input from wheel speed sensor
+    pinMode(Tpin, INPUT);              // Input from throttle 
+    pinMode(plusPin, INPUT);           // Input from setpoint increment button
+    pinMode(minusPin, INPUT);          // Input from setpoint decrement button
+    pinMode(outputPin, OUTPUT);        // Output to the motor controller
     pinMode(A5, INPUT); 
-    pinMode(csPin, OUTPUT);
+    pinMode(csPin, OUTPUT);            // Output for chip select on micro SD card module
+    pinMode(A2, OUTPUT);               // Output for throttle relay coil
     
     // Setting Button Pins to High 
     digitalWrite(plusPin, HIGH);
@@ -188,33 +189,9 @@ void loop() {
  // PASSING THROTTLE THROUGH THE NANO
  if(cruiseControlState == 0) {
    
-   // Passing throttle signal through the Arduino 
-   Tsig = analogRead(Tpin); 
-   if (Tsig < 190) {                // If the throttle is at it's rest position there should be no output to the motor controller
-     analogWrite(outputPin, 0); 
-   }
-   else {
-    // Begin Averaging of the Throttle Signal
-    total = total - readings[readIndex]; // subtract the last reading:
-    // read from the sensor:
-    readings[readIndex] = Tsig/4;
-    // add the reading to the total:
-    total = total + readings[readIndex];
-    // advance to the next position in the array:
-    readIndex = readIndex + 1;
-  
-    // if we're at the end of the array...
-    if (readIndex >= numReadings) {
-      // ...wrap around to the beginning:
-      readIndex = 0;
-    }
-  
-    // calculate the average:
-    average = total / numReadings;
-     
-     analogWrite(outputPin, average);
-   }
-  
+   digitalWrite(A2, HIGH); // Energizes the coil on the relay and closes the switch to eliminate the Arduino from the throttle circuit
+
+   // Logging to the serial monitor 
    if(serial) serialData(cruiseControlState, Setpoint, Tsig, average, Input, Output, currTime); // displays pertinent info to serial monitor 
    
    Input = getSpeed(); // Acquiring input here for logging purposes
@@ -264,8 +241,9 @@ void loop() {
    Input = getSpeed(); // measures the new current speed as the input to the PID algorithim
    motorPID.Compute(); // computes the output 
 
-   // THE HANDOFF // Cruise Control now takes over passing throttle signal to the motor controller
-   analogWrite(outputPin, 0); // turns the output from the nano off
+   // THE HANDOFF // Instead of recieving a throttle signal from the throttle itself, the motor controller will now recieve an emulated throttle signal coming from the Arduino
+   digitalWrite(A2, LOW); // Turns off power to the coil on the throttle relay, enabling the Arduino to now take over passing its emulated throttle signa to the motor controller
+   delay(100); // Some delay to ensure a clean handoff between the throttle and the Arduino
    OutputWrite = (int)Output * (255/5); // Converting Output [V] to PWM duty cycle
    analogWrite(outputPin, OutputWrite); // Writing output to motor controller 
  }
