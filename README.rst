@@ -22,7 +22,11 @@ The Testing folder contains the source code used in the evaluation and diagnosti
 
 Also included in the Testing folder is a utility function for converting bits to volts and the testAnalyzer.m file used to plot and evaluate the performance of runs collected from testing. 
 
-Please see each file for more information on what's included in them. These files are meant to be used with the comma delimited diagnostics files produced by the TopLevel.ino file found in the Implementation folder of this repo.
+Please see each file for more information on what's included in them. These files are meant to be used with the comma delimited diagnostics files produced by the TopLevel.ino file found in the Implementation folder of this repo. 
+
+Other Documents in this Repo
+---------------------------- 
+Also included in this repository are the user+technical guide for the cruise control system (pdf) and a copy of the master electrical schematic for the cruise control system (pdf). Note: The master electrical schematic is also included as a .json file for opening and editing in easyEDA.
 
 Prerequisites
 -------------
